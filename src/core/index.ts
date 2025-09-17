@@ -1,0 +1,54 @@
+// Core exports for test automation DSL and code generation
+export * from './dsl-generator';
+export * from './code-generator';
+export * from './test-executor';
+
+// Re-export commonly used types and functions
+export {
+  type TestStep,
+  type TestCase,
+  type GenerationOptions,
+  generateTestCase,
+  exampleTestCases
+} from './dsl-generator';
+
+export {
+  type CodeGenerationOptions,
+  type GeneratedCode,
+  generateCode
+} from './code-generator';
+
+export {
+  type TestResult,
+  type TestExecutor,
+  type ExecutionOptions,
+  createTestExecutor,
+  TestUtils
+} from './test-executor';
+
+// Default configuration
+export const DEFAULT_CONFIG = {
+  generation: {
+    includeNavigation: true,
+    defaultTimeout: 30000,
+    includeScreenshots: false,
+    generateAssertions: true
+  },
+  
+  codeGeneration: {
+    framework: 'playwright' as const,
+    language: 'typescript' as const,
+    includeComments: true,
+    includeScreenshots: false,
+    timeout: 30000,
+    headless: true
+  },
+  
+  execution: {
+    timeout: 30000,
+    headless: true,
+    captureScreenshots: false,
+    pauseOnFailure: false,
+    retryCount: 0
+  }
+};
