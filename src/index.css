@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Professional dark developer theme */
+    --background: 218 23% 8%;
+    --foreground: 220 20% 95%;
+
+    --card: 218 25% 10%;
+    --card-foreground: 220 20% 95%;
+
+    --popover: 218 25% 10%;
+    --popover-foreground: 220 20% 95%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 218 23% 8%;
+
+    --secondary: 218 20% 15%;
+    --secondary-foreground: 220 20% 95%;
+
+    --muted: 218 20% 12%;
+    --muted-foreground: 220 15% 60%;
+
+    --accent: 262 83% 58%;
+    --accent-foreground: 220 20% 95%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 220 20% 95%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 220 20% 95%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 218 23% 8%;
+
+    --border: 218 20% 18%;
+    --input: 218 20% 15%;
+    --ring: 217 91% 60%;
+
+    --code-bg: 218 25% 12%;
+    --code-border: 218 20% 20%;
+
+    --radius: 0.75rem;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%) 0%, hsl(262 83% 58%) 100%);
+    --gradient-secondary: linear-gradient(135deg, hsl(142 71% 45%) 0%, hsl(142 71% 55%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(218 25% 10%) 0%, hsl(218 23% 8%) 100%);
+    
+    /* Code background */
+    --code: 218 25% 12%;
+
+    /* Shadows */
+    --shadow-elegant: 0 10px 30px -10px hsl(217 91% 60% / 0.2);
+    --shadow-glow: 0 0 40px hsl(217 91% 60% / 0.15);
+    --shadow-code: 0 4px 20px hsl(218 23% 8% / 0.5);
+
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+    --sidebar-background: 218 25% 10%;
+    --sidebar-foreground: 220 20% 95%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 218 23% 8%;
+    --sidebar-accent: 218 20% 15%;
+    --sidebar-accent-foreground: 220 20% 95%;
+    --sidebar-border: 218 20% 18%;
+    --sidebar-ring: 217 91% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
