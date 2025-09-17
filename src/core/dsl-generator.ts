@@ -35,6 +35,8 @@ export interface GenerationOptions {
   defaultTimeout?: number;
   includeScreenshots?: boolean;
   generateAssertions?: boolean;
+  testData?: Record<string, string>; // User-provided test data
+  baseUrl?: string; // Allow custom base URLs
 }
 
 /**
@@ -67,7 +69,7 @@ export function generateTestCase(
   }
 
   // Parse form interactions
-  parseFormInteractions(lowerDesc, steps);
+  parseFormInteractions(lowerDesc, steps, options.testData);
   
   // Parse click actions
   parseClickActions(lowerDesc, steps);
@@ -111,23 +113,40 @@ function extractPath(description: string): string | null {
   return null;
 }
 
-function parseFormInteractions(description: string, steps: TestStep[]): void {
+function parseFormInteractions(description: string, steps: TestStep[], testData?: Record<string, string>): void {
   const formPatterns = [
-    { pattern: /(?:enter|fill|type|input)\s+(?:username|user\s*name|email)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'username' },
+    { pattern: /(?:enter|fill|type|input)\s+(?:username|user\s*name)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'username' },
     { pattern: /(?:enter|fill|type|input)\s+(?:password|pass)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'password' },
     { pattern: /(?:enter|fill|type|input)\s+(?:email|e-mail)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'email' },
     { pattern: /(?:enter|fill|type|input)\s+(?:name|full\s*name)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'name' },
-    { pattern: /(?:enter|fill|type|input)\s+(?:phone|telephone)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'phone' }
+    { pattern: /(?:enter|fill|type|input)\s+(?:phone|telephone)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'phone' },
+    // Generic field pattern for any input
+    { pattern: /(?:enter|fill|type|input)\s+(?:the\s+)?([a-zA-Z\s]+?)\s+(?:field|input|box)?\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'generic' }
   ];
 
   for (const { pattern, field } of formPatterns) {
     const match = description.match(pattern);
     if (match) {
-      const value = match[1]?.trim() || getDefaultValue(field, description);
+      let fieldName = field;
+      let value = match[1]?.trim();
+      
+      // Handle generic field pattern
+      if (field === 'generic') {
+        fieldName = match[1]?.trim().toLowerCase() || 'input';
+        value = match[2]?.trim();
+      }
+      
+      // Use provided value or generate placeholder
+      const finalValue = value || getDefaultValue(fieldName, description, testData);
+      
+      // Use multiple locator strategies for better reliability with real pages
       steps.push({
         action: "fill",
-        locator: { type: "label", value: capitalizeFirst(field) },
-        text: value
+        locator: { 
+          type: "label" as const, 
+          value: capitalizeFirst(fieldName) 
+        },
+        text: finalValue
       });
     }
   }
@@ -201,18 +220,33 @@ function parseAssertions(description: string, steps: TestStep[]): void {
   }
 }
 
-function getDefaultValue(field: string, description: string): string {
+function getDefaultValue(field: string, description: string, testData?: Record<string, string>): string {
   const isInvalid = /(?:wrong|invalid|incorrect|bad|failed?)/i.test(description);
   
-  const defaults = {
-    username: isInvalid ? "invaliduser" : "testuser",
-    password: isInvalid ? "wrongpass" : "password123",
-    email: isInvalid ? "invalid@email" : "test@example.com",
-    name: "Test User",
-    phone: "555-123-4567"
+  // Use provided test data first, then fallback to contextual defaults
+  if (testData && testData[field]) {
+    return isInvalid ? `invalid_${testData[field]}` : testData[field];
+  }
+  
+  // Generate contextual values based on field type
+  const generateValue = (fieldType: string, invalid: boolean = false) => {
+    switch (fieldType) {
+      case 'username':
+        return invalid ? '{{INVALID_USERNAME}}' : '{{USERNAME}}';
+      case 'password':
+        return invalid ? '{{INVALID_PASSWORD}}' : '{{PASSWORD}}';
+      case 'email':
+        return invalid ? '{{INVALID_EMAIL}}' : '{{EMAIL}}';
+      case 'name':
+        return '{{FULL_NAME}}';
+      case 'phone':
+        return '{{PHONE_NUMBER}}';
+      default:
+        return `{{${fieldType.toUpperCase()}}}`;
+    }
   };
   
-  return defaults[field as keyof typeof defaults] || "test";
+  return generateValue(field, isInvalid);
 }
 
 function extractTags(description: string): string[] {
@@ -232,27 +266,49 @@ function capitalizeFirst(str: string): string {
 }
 
 /**
- * Enhanced example test cases for demonstration
+ * Create a test data replacement utility
+ */
+export function replaceTestDataPlaceholders(testCase: TestCase, realData: Record<string, string>): TestCase {
+  const replacedSteps = testCase.steps.map(step => {
+    if (step.text) {
+      let replacedText = step.text;
+      Object.entries(realData).forEach(([key, value]) => {
+        const placeholder = `{{${key.toUpperCase()}}}`;
+        replacedText = replacedText.replace(new RegExp(placeholder, 'g'), value);
+      });
+      return { ...step, text: replacedText };
+    }
+    return step;
+  });
+
+  return {
+    ...testCase,
+    steps: replacedSteps
+  };
+}
+
+/**
+ * Enhanced example test case templates (with placeholders for real data)
  */
 export const exampleTestCases = [
   {
     description: "User logs in with valid credentials and sees dashboard",
-    url: "https://app.example.com"
+    url: "{{BASE_URL}}"
   },
   {
-    description: "Login with wrong password shows error message",
-    url: "https://app.example.com"
+    description: "Login with wrong password shows error message", 
+    url: "{{BASE_URL}}"
   },
   {
     description: "User registers with valid email and gets success confirmation",
-    url: "https://signup.example.com"
+    url: "{{BASE_URL}}"
   },
   {
     description: "Submit contact form and verify thank you message appears",
-    url: "https://contact.example.com"
+    url: "{{BASE_URL}}"
   },
   {
     description: "Navigate to profile page and update user information",
-    url: "https://app.example.com"
+    url: "{{BASE_URL}}"
   }
 ];

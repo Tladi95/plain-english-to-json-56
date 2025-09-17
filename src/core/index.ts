@@ -3,6 +3,24 @@ export * from './dsl-generator';
 export * from './code-generator';
 export * from './test-executor';
 
+// Page analysis and test data management
+export {
+  type PageElement,
+  type PageAnalysis,
+  generateSmartLocator,
+  matchFieldToPageElement,
+  generateDataPlaceholder,
+  createPageDataTemplate
+} from './page-analyzer';
+
+export {
+  type TestDataSet,
+  type TestDataConfig,
+  TestDataManager,
+  createDefaultTestDataManager,
+  createTestDataTemplate
+} from './test-data-manager';
+
 // Re-export commonly used types and functions
 export {
   type TestStep,
