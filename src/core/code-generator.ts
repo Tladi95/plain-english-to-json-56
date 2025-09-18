@@ -1,4 +1,5 @@
 import { TestCase, TestStep } from './dsl-generator';
+import { validateStrictMode, extractLockedValues, performFinalValidation, LockedValue } from './strict-validator';
 
 export interface CodeGenerationOptions {
   framework: 'playwright' | 'selenium' | 'cypress';
@@ -18,27 +19,51 @@ export interface GeneratedCode {
 }
 
 /**
- * STRICT MODE code generator - follows locked values exactly as provided
+ * STRICT MODE code generator with double-checking validation
  * NEVER alters, replaces, reorders, or omits any locked values
  * NEVER invents defaults or uses placeholders
+ * Performs self-validation to ensure zero deviation
  */
 export function generateCode(
   testCase: TestCase, 
   options: CodeGenerationOptions = { 
     framework: 'playwright', 
     language: 'typescript' 
-  }
+  },
+  originalInput?: string
 ): GeneratedCode {
+  let result: GeneratedCode;
+
   switch (options.framework) {
     case 'playwright':
-      return generatePlaywrightCode(testCase, options);
+      result = generatePlaywrightCode(testCase, options);
+      break;
     case 'selenium':
-      return generateSeleniumCode(testCase, options);
+      result = generateSeleniumCode(testCase, options);
+      break;
     case 'cypress':
-      return generateCypressCode(testCase, options);
+      result = generateCypressCode(testCase, options);
+      break;
     default:
       throw new Error(`Unsupported framework: ${options.framework}`);
   }
+
+  // STRICT MODE VALIDATION: Double-check for deviations
+  if (originalInput) {
+    const locks = extractLockedValues(originalInput);
+    const validation = performFinalValidation(originalInput, result.code, locks);
+    
+    if (!validation.isValid) {
+      if (validation.deviations.length > 0) {
+        throw new Error(`ERROR: DEVIATION DETECTED\n${validation.deviations.join('\n')}`);
+      }
+      if (validation.errors.length > 0) {
+        throw new Error(`ERROR: VALIDATION FAILED\n${validation.errors.join('\n')}`);
+      }
+    }
+  }
+
+  return result;
 }
 
 function generatePlaywrightCode(testCase: TestCase, options: CodeGenerationOptions): GeneratedCode {

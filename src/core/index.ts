@@ -3,6 +3,20 @@ export * from './dsl-generator';
 export * from './code-generator';
 export * from './test-executor';
 
+// STRICT MODE exports for zero-deviation code generation
+export {
+  type LockedValue,
+  type ValidationResult as StrictValidationResult,
+  validateStrictMode,
+  extractLockedValues,
+  performFinalValidation
+} from './strict-validator';
+
+export {
+  type StrictGenerationResult,
+  generateStrictCode
+} from './strict-mode-generator';
+
 // Page analysis and test data management
 export {
   type PageElement,
