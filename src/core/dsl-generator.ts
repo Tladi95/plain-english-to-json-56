@@ -9,7 +9,7 @@ export interface TestStep {
   };
   text?: string;
   assertion?: {
-    type: "containsText" | "visible" | "urlContains" | "hasValue" | "isEnabled" | "isDisabled";
+    type: "containsText" | "exactText" | "toHaveText" | "visible" | "urlContains" | "hasValue" | "isEnabled" | "isDisabled";
     locator?: {
       type?: string;
       css?: string;

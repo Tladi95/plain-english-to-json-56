@@ -18,7 +18,9 @@ export interface GeneratedCode {
 }
 
 /**
- * Enhanced code generator supporting multiple frameworks and languages
+ * STRICT MODE code generator - follows locked values exactly as provided
+ * NEVER alters, replaces, reorders, or omits any locked values
+ * NEVER invents defaults or uses placeholders
  */
 export function generateCode(
   testCase: TestCase, 
@@ -214,17 +216,32 @@ function generatePlaywrightStep(
   
   switch (step.action) {
     case 'goto':
-      code += `${spaces}await page.goto('${step.path || '/'}');`;
+      // STRICT MODE: Use exact URL as provided, never alter or add defaults
+      if (!step.path) {
+        code += `${spaces}// TODO: URL not specified`;
+      } else {
+        code += `${spaces}await page.goto('${step.path}');`;
+      }
       break;
     
     case 'fill':
-      const fillLocator = generatePlaywrightLocator(step.locator!);
-      code += `${spaces}await page.locator('${fillLocator}').fill('${step.text}');`;
+      // STRICT MODE: Use exact locator and text as provided
+      if (!step.locator || !step.text) {
+        code += `${spaces}// TODO: Locator or text not specified`;
+      } else {
+        const fillLocator = generatePlaywrightLocator(step.locator);
+        code += `${spaces}await page.locator('${fillLocator}').fill('${step.text}');`;
+      }
       break;
     
     case 'click':
-      const clickLocator = generatePlaywrightLocator(step.locator!);
-      code += `${spaces}await page.locator('${clickLocator}').click();`;
+      // STRICT MODE: Use exact locator as provided
+      if (!step.locator) {
+        code += `${spaces}// TODO: Locator not specified`;
+      } else {
+        const clickLocator = generatePlaywrightLocator(step.locator);
+        code += `${spaces}await page.locator('${clickLocator}').click();`;
+      }
       break;
     
     case 'assert':
@@ -232,7 +249,7 @@ function generatePlaywrightStep(
       break;
     
     default:
-      code += `${spaces}// Unknown action: ${step.action}`;
+      code += `${spaces}// TODO: Unknown action: ${step.action}`;
   }
   
   if (includeScreenshots) {
@@ -243,54 +260,99 @@ function generatePlaywrightStep(
 }
 
 function generatePlaywrightLocator(locator: any): string {
+  // STRICT MODE: Use exact selectors as provided, never alter or auto-generate
   switch (locator.type) {
     case 'label':
-      return `label:has-text("${locator.value}")`;
+      return locator.value ? `label:has-text("${locator.value}")` : '// TODO: Label value not specified';
     case 'id':
-      return `#${locator.value}`;
+      return locator.value ? `#${locator.value}` : '// TODO: ID value not specified';
     case 'role':
-      return `role=${locator.role}[name="${locator.name}"]`;
+      if (locator.role && locator.name) {
+        return `role=${locator.role}[name="${locator.name}"]`;
+      }
+      return '// TODO: Role or name not specified';
     case 'text':
-      return `text=${locator.value}`;
+      return locator.value ? `text=${locator.value}` : '// TODO: Text value not specified';
     case 'css':
-      return locator.value;
+      return locator.value || '// TODO: CSS selector not specified';
     case 'xpath':
-      return `xpath=${locator.value}`;
+      return locator.value ? `xpath=${locator.value}` : '// TODO: XPath not specified';
     default:
-      return locator.value || '';
+      return locator.value || '// TODO: Locator value not specified';
   }
 }
 
 function generatePlaywrightAssertion(step: TestStep, indent: number): string {
   const spaces = ' '.repeat(indent);
-  const assertion = step.assertion!;
   
+  if (!step.assertion) {
+    return `${spaces}// TODO: Assertion not specified`;
+  }
+  
+  const assertion = step.assertion;
+  
+  // STRICT MODE: Use exact assertion types and values as provided
   switch (assertion.type) {
     case 'containsText':
-      const textLocator = assertion.locator ? generatePlaywrightLocator(assertion.locator) : 'body';
+      if (!assertion.value) {
+        return `${spaces}// TODO: Assertion value not specified`;
+      }
+      const textLocator = assertion.locator ? generatePlaywrightLocator(assertion.locator) : '// TODO: Assertion locator not specified';
+      if (textLocator.startsWith('//')) {
+        return `${spaces}${textLocator}`;
+      }
       return `${spaces}await expect(page.locator('${textLocator}')).toContainText('${assertion.value}');`;
     
+    case 'exactText':
+    case 'toHaveText':
+      if (!assertion.value) {
+        return `${spaces}// TODO: Assertion value not specified`;
+      }
+      const exactTextLocator = assertion.locator ? generatePlaywrightLocator(assertion.locator) : '// TODO: Assertion locator not specified';
+      if (exactTextLocator.startsWith('//')) {
+        return `${spaces}${exactTextLocator}`;
+      }
+      return `${spaces}await expect(page.locator('${exactTextLocator}')).toHaveText('${assertion.value}');`;
+    
     case 'visible':
-      const visibleLocator = assertion.locator ? generatePlaywrightLocator(assertion.locator) : 'body';
+      const visibleLocator = assertion.locator ? generatePlaywrightLocator(assertion.locator) : '// TODO: Assertion locator not specified';
+      if (visibleLocator.startsWith('//')) {
+        return `${spaces}${visibleLocator}`;
+      }
       return `${spaces}await expect(page.locator('${visibleLocator}')).toBeVisible();`;
     
     case 'urlContains':
+      if (!assertion.value) {
+        return `${spaces}// TODO: URL value not specified`;
+      }
       return `${spaces}await expect(page).toHaveURL(new RegExp('.*${assertion.value}.*'));`;
     
     case 'hasValue':
-      const valueLocator = assertion.locator ? generatePlaywrightLocator(assertion.locator) : 'input';
+      if (!assertion.value) {
+        return `${spaces}// TODO: Assertion value not specified`;
+      }
+      const valueLocator = assertion.locator ? generatePlaywrightLocator(assertion.locator) : '// TODO: Assertion locator not specified';
+      if (valueLocator.startsWith('//')) {
+        return `${spaces}${valueLocator}`;
+      }
       return `${spaces}await expect(page.locator('${valueLocator}')).toHaveValue('${assertion.value}');`;
     
     case 'isEnabled':
-      const enabledLocator = assertion.locator ? generatePlaywrightLocator(assertion.locator) : 'button';
+      const enabledLocator = assertion.locator ? generatePlaywrightLocator(assertion.locator) : '// TODO: Assertion locator not specified';
+      if (enabledLocator.startsWith('//')) {
+        return `${spaces}${enabledLocator}`;
+      }
       return `${spaces}await expect(page.locator('${enabledLocator}')).toBeEnabled();`;
     
     case 'isDisabled':
-      const disabledLocator = assertion.locator ? generatePlaywrightLocator(assertion.locator) : 'button';
+      const disabledLocator = assertion.locator ? generatePlaywrightLocator(assertion.locator) : '// TODO: Assertion locator not specified';
+      if (disabledLocator.startsWith('//')) {
+        return `${spaces}${disabledLocator}`;
+      }
       return `${spaces}await expect(page.locator('${disabledLocator}')).toBeDisabled();`;
     
     default:
-      return `${spaces}// Unknown assertion: ${assertion.type}`;
+      return `${spaces}// TODO: Unknown assertion type: ${assertion.type}`;
   }
 }
 
