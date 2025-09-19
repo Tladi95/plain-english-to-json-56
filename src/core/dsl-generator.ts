@@ -40,7 +40,8 @@ export interface GenerationOptions {
 }
 
 /**
- * Enhanced test case generator with improved NLP parsing
+ * UNIVERSAL STRICT MODE - Plain English parser with zero deviation tolerance
+ * Extracts exact values from natural language and generates complete runnable tests
  */
 export function generateTestCase(
   description: string, 
@@ -114,24 +115,25 @@ function extractPath(description: string): string | null {
 }
 
 function parseFormInteractions(description: string, steps: TestStep[], testData?: Record<string, string>): void {
-  // STRICT MODE: Extract exact values from plain English
+  // UNIVERSAL STRICT MODE: Extract exact values with aggressive pattern matching
   const exactValues = extractExactValues(description);
   
   const formPatterns = [
-    // Pattern for "login with username Sam and password sammy"
-    { pattern: /(?:login|signin|log\s+in)\s+with\s+username\s+([A-Za-z0-9_]+)(?:\s+and\s+password\s+([A-Za-z0-9_]+))?/i, fields: ['username', 'password'] },
-    { pattern: /(?:login|signin|log\s+in)\s+with\s+user\s+([A-Za-z0-9_]+)(?:\s+and\s+password\s+([A-Za-z0-9_]+))?/i, fields: ['username', 'password'] },
+    // Core login patterns with exact value capture
+    { pattern: /(?:try\s+to\s+)?(?:login|signin|log\s+in)\s+with\s+username\s+([A-Za-z0-9_]+)(?:\s+and\s+password\s+([A-Za-z0-9_]+))?/i, fields: ['username', 'password'] },
+    { pattern: /(?:try\s+to\s+)?(?:login|signin|log\s+in)\s+with\s+user\s+([A-Za-z0-9_]+)(?:\s+and\s+password\s+([A-Za-z0-9_]+))?/i, fields: ['username', 'password'] },
+    { pattern: /(?:try\s+to\s+)?(?:login|signin|log\s+in)\s+using\s+([A-Za-z0-9_]+)(?:\s+and\s+([A-Za-z0-9_]+))?/i, fields: ['username', 'password'] },
     
-    // Pattern for quoted values "try to login with username 'Sam' and password 'sammy'"
+    // Quoted values patterns "try to login with username 'Sam' and password 'sammy'"
     { pattern: /username\s+['"']([^'"]+)['"'](?:\s+and\s+password\s+['"']([^'"]+)['"'])?/i, fields: ['username', 'password'] },
     { pattern: /user\s+['"']([^'"]+)['"'](?:\s+and\s+password\s+['"']([^'"]+)['"'])?/i, fields: ['username', 'password'] },
     
-    // Individual field patterns with exact value extraction
-    { pattern: /(?:enter|fill|type|input)\s+(?:username|user\s*name)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, fields: ['username'] },
-    { pattern: /(?:enter|fill|type|input)\s+(?:password|pass)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, fields: ['password'] },
-    { pattern: /(?:enter|fill|type|input)\s+(?:email|e-mail)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, fields: ['email'] },
-    { pattern: /(?:enter|fill|type|input)\s+(?:name|full\s*name)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, fields: ['name'] },
-    { pattern: /(?:enter|fill|type|input)\s+(?:phone|telephone)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, fields: ['phone'] }
+    // Individual field patterns with exact value extraction  
+    { pattern: /(?:enter|fill|type|input)\s+(?:username|user\s*name)\s*(?:with\s*|as\s*)?['"']?([^'"]*)['"']?/i, fields: ['username'] },
+    { pattern: /(?:enter|fill|type|input)\s+(?:password|pass)\s*(?:with\s*|as\s*)?['"']?([^'"]*)['"']?/i, fields: ['password'] },
+    { pattern: /(?:enter|fill|type|input)\s+(?:email|e-mail)\s*(?:with\s*|as\s*)?['"']?([^'"]*)['"']?/i, fields: ['email'] },
+    { pattern: /(?:enter|fill|type|input)\s+(?:name|full\s*name)\s*(?:with\s*|as\s*)?['"']?([^'"]*)['"']?/i, fields: ['name'] },
+    { pattern: /(?:enter|fill|type|input)\s+(?:phone|telephone)\s*(?:with\s*|as\s*)?['"']?([^'"]*)['"']?/i, fields: ['phone'] }
   ];
 
   for (const { pattern, fields } of formPatterns) {
@@ -180,39 +182,44 @@ function parseFormInteractions(description: string, steps: TestStep[], testData?
 }
 
 /**
- * STRICT MODE: Extract exact values from plain English
+ * UNIVERSAL STRICT MODE: Extract exact values from plain English with aggressive pattern matching
  */
 function extractExactValues(description: string): Record<string, string> {
   const values: Record<string, string> = {};
   
-  // Extract username patterns with exact values
+  // UNIVERSAL username extraction patterns - covers all common phrasings
   const usernamePatterns = [
-    /username\s+([A-Za-z0-9_]+)/i,
-    /user\s+([A-Za-z0-9_]+)/i,
+    /(?:try\s+to\s+)?(?:login|signin|log\s+in)\s+with\s+username\s+([A-Za-z0-9_\.@-]+)/i,
+    /(?:try\s+to\s+)?(?:login|signin|log\s+in)\s+with\s+user\s+([A-Za-z0-9_\.@-]+)/i,
+    /(?:try\s+to\s+)?(?:login|signin|log\s+in)\s+using\s+([A-Za-z0-9_\.@-]+)/i,
+    /username\s+([A-Za-z0-9_\.@-]+)(?:\s+and|\s*$)/i,
+    /user\s+([A-Za-z0-9_\.@-]+)(?:\s+and|\s*$)/i,
     /username\s+['"']([^'"]+)['"']/i,
-    /user\s+['"']([^'"]+)['"']/i
+    /user\s+['"']([^'"]+)['"']/i,
+    /with\s+([A-Za-z0-9_\.@-]+)\s+and\s+password/i
   ];
   
   for (const pattern of usernamePatterns) {
     const match = description.match(pattern);
-    if (match) {
-      values['username'] = match[1];
+    if (match && match[1]) {
+      values['username'] = match[1].trim();
       break;
     }
   }
   
-  // Extract password patterns with exact values
+  // UNIVERSAL password extraction patterns - covers all common phrasings
   const passwordPatterns = [
-    /password\s+([A-Za-z0-9_]+)/i,
-    /pass\s+([A-Za-z0-9_]+)/i,
+    /(?:and\s+)?password\s+([A-Za-z0-9_\.@!-]+)/i,
+    /(?:and\s+)?pass\s+([A-Za-z0-9_\.@!-]+)/i,
     /password\s+['"']([^'"]+)['"']/i,
-    /pass\s+['"']([^'"]+)['"']/i
+    /pass\s+['"']([^'"]+)['"']/i,
+    /and\s+([A-Za-z0-9_\.@!-]+)(?:\s*$|\s+[^\w])/i // Captures second value after "and"
   ];
   
   for (const pattern of passwordPatterns) {
     const match = description.match(pattern);
-    if (match) {
-      values['password'] = match[1];
+    if (match && match[1]) {
+      values['password'] = match[1].trim();
       break;
     }
   }
@@ -221,6 +228,12 @@ function extractExactValues(description: string): Record<string, string> {
   const emailMatch = description.match(/email\s+['"']?([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})['"']?/i);
   if (emailMatch) {
     values['email'] = emailMatch[1];
+  }
+  
+  // Extract URL patterns
+  const urlMatch = description.match(/(?:go\s+to|visit|navigate\s+to)\s+([https?:\/\/][^\s]+)/i);
+  if (urlMatch) {
+    values['url'] = urlMatch[1];
   }
   
   return values;

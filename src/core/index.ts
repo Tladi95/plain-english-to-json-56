@@ -17,6 +17,11 @@ export {
   generateStrictCode
 } from './strict-mode-generator';
 
+export {
+  type UniversalStrictResult,
+  generateFromPlainEnglish
+} from './universal-strict-generator';
+
 // Page analysis and test data management
 export {
   type PageElement,
