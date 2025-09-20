@@ -1,5 +1,6 @@
 import { TestCase, TestStep } from './dsl-generator';
 import { validateStrictMode, extractLockedValues, performFinalValidation, LockedValue } from './strict-validator';
+import { validateInstructionCompliance, validateExactValues } from './instruction-validator';
 
 export interface CodeGenerationOptions {
   framework: 'playwright' | 'selenium' | 'cypress';
@@ -48,18 +49,33 @@ export function generateCode(
       throw new Error(`Unsupported framework: ${options.framework}`);
   }
 
-  // STRICT MODE VALIDATION: Double-check for deviations
+  // UNIVERSAL STRICT MODE VALIDATION: Triple validation for zero deviation
   if (originalInput) {
+    // Primary validation: Check locked values
     const locks = extractLockedValues(originalInput);
     const validation = performFinalValidation(originalInput, result.code, locks);
     
+    // Secondary validation: Check instruction compliance
+    const instructionValidation = validateInstructionCompliance(originalInput, result.code);
+    
+    // Tertiary validation: Check exact value preservation
+    const exactValueErrors = validateExactValues(originalInput, result.code);
+    
+    // Combine all validation results
+    const allErrors: string[] = [];
+    
     if (!validation.isValid) {
-      if (validation.deviations.length > 0) {
-        throw new Error(`ERROR: DEVIATION DETECTED\n${validation.deviations.join('\n')}`);
-      }
-      if (validation.errors.length > 0) {
-        throw new Error(`ERROR: VALIDATION FAILED\n${validation.errors.join('\n')}`);
-      }
+      allErrors.push(...validation.deviations, ...validation.errors);
+    }
+    
+    if (!instructionValidation.isValid) {
+      allErrors.push(...instructionValidation.deviations, ...instructionValidation.missingRequirements);
+    }
+    
+    allErrors.push(...exactValueErrors);
+    
+    if (allErrors.length > 0) {
+      throw new Error(`ERROR: DEVIATION DETECTED\n${allErrors.join('\n')}`);
     }
   }
 

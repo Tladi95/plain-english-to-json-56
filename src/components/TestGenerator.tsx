@@ -138,8 +138,12 @@ export function TestGenerator() {
                   placeholder="e.g., try to login with username Sam and password sammy"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="min-h-[100px] resize-none bg-input border-border focus:ring-primary"
+                  className="min-h-[120px] resize-none bg-input border-border focus:ring-primary"
                 />
+                <div className="text-xs text-muted-foreground mt-1">
+                  <strong>Be specific:</strong> Use exact usernames, passwords, and expected results. 
+                  The system will follow your instructions literally.
+                </div>
               </div>
 
               <div className="space-y-2">
