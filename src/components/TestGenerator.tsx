@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Copy, Wand2, Code2, TestTube2, Play, CheckCircle, XCircle, Clock } from "lucide-react";
-import { generateTestCase, exampleTests, type TestCase } from "@/lib/testGenerator";
-import { generatePlaywrightCode, executeTest, type TestResult } from "@/lib/playwrightExecutor";
+import { generateTestCase, exampleTestCases, type TestCase } from "@/core/dsl-generator";
+import { generateCode, type GeneratedCode } from "@/core/code-generator";
+import { createTestExecutor, type TestResult, type ExecutionOptions } from "@/core/test-executor";
 import { useToast } from "@/hooks/use-toast";
 
 export function TestGenerator() {
@@ -57,7 +58,7 @@ export function TestGenerator() {
     });
   };
 
-  const loadExample = (example: typeof exampleTests[0]) => {
+  const loadExample = (example: typeof exampleTestCases[0]) => {
     setDescription(example.description);
     setUrl(example.url);
     setTestResult(null); // Clear previous results
@@ -70,7 +71,8 @@ export function TestGenerator() {
     setTestResult({ status: 'running', message: 'Executing test...', duration: 0 });
     
     try {
-      const result = await executeTest(generatedTest);
+      const executor = createTestExecutor();
+      const result = await executor.execute(generatedTest);
       setTestResult(result);
       
       toast({
@@ -92,8 +94,8 @@ export function TestGenerator() {
   const copyPlaywrightCode = async () => {
     if (!generatedTest) return;
     
-    const playwrightCode = generatePlaywrightCode(generatedTest);
-    await navigator.clipboard.writeText(playwrightCode);
+    const generatedCode = generateCode(generatedTest);
+    await navigator.clipboard.writeText(generatedCode.code);
     
     toast({
       title: "Playwright code copied!",
@@ -133,7 +135,7 @@ export function TestGenerator() {
                 <Label htmlFor="description">Test Description</Label>
                 <Textarea
                   id="description"
-                  placeholder="e.g., Check login with wrong password shows error"
+                  placeholder="e.g., try to login with username Sam and password sammy"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="min-h-[100px] resize-none bg-input border-border focus:ring-primary"
@@ -173,7 +175,7 @@ export function TestGenerator() {
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Quick Examples:</Label>
                 <div className="space-y-2">
-                  {exampleTests.map((example, index) => (
+                  {exampleTestCases.map((example, index) => (
                     <Button
                       key={index}
                       variant="outline"
@@ -222,11 +224,11 @@ export function TestGenerator() {
                           Copy Code
                         </Button>
                       </div>
-                      <pre className="bg-code border border-code rounded-lg p-4 text-sm overflow-auto max-h-[500px] shadow-code">
-                        <code className="text-foreground">
-                          {generatePlaywrightCode(generatedTest)}
-                        </code>
-                      </pre>
+                       <pre className="bg-code border border-code rounded-lg p-4 text-sm overflow-auto max-h-[500px] shadow-code">
+                         <code className="text-foreground">
+                           {generateCode(generatedTest).code}
+                         </code>
+                       </pre>
                     </div>
                   </TabsContent>
                   

@@ -114,42 +114,116 @@ function extractPath(description: string): string | null {
 }
 
 function parseFormInteractions(description: string, steps: TestStep[], testData?: Record<string, string>): void {
+  // STRICT MODE: Extract exact values from plain English
+  const exactValues = extractExactValues(description);
+  
   const formPatterns = [
-    { pattern: /(?:enter|fill|type|input)\s+(?:username|user\s*name)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'username' },
-    { pattern: /(?:enter|fill|type|input)\s+(?:password|pass)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'password' },
-    { pattern: /(?:enter|fill|type|input)\s+(?:email|e-mail)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'email' },
-    { pattern: /(?:enter|fill|type|input)\s+(?:name|full\s*name)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'name' },
-    { pattern: /(?:enter|fill|type|input)\s+(?:phone|telephone)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'phone' },
-    // Generic field pattern for any input
-    { pattern: /(?:enter|fill|type|input)\s+(?:the\s+)?([a-zA-Z\s]+?)\s+(?:field|input|box)?\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'generic' }
+    // Pattern for "login with username Sam and password sammy"
+    { pattern: /(?:login|signin|log\s+in)\s+with\s+username\s+([A-Za-z0-9_]+)(?:\s+and\s+password\s+([A-Za-z0-9_]+))?/i, fields: ['username', 'password'] },
+    { pattern: /(?:login|signin|log\s+in)\s+with\s+user\s+([A-Za-z0-9_]+)(?:\s+and\s+password\s+([A-Za-z0-9_]+))?/i, fields: ['username', 'password'] },
+    
+    // Pattern for quoted values "try to login with username 'Sam' and password 'sammy'"
+    { pattern: /username\s+['"']([^'"]+)['"'](?:\s+and\s+password\s+['"']([^'"]+)['"'])?/i, fields: ['username', 'password'] },
+    { pattern: /user\s+['"']([^'"]+)['"'](?:\s+and\s+password\s+['"']([^'"]+)['"'])?/i, fields: ['username', 'password'] },
+    
+    // Individual field patterns with exact value extraction
+    { pattern: /(?:enter|fill|type|input)\s+(?:username|user\s*name)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, fields: ['username'] },
+    { pattern: /(?:enter|fill|type|input)\s+(?:password|pass)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, fields: ['password'] },
+    { pattern: /(?:enter|fill|type|input)\s+(?:email|e-mail)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, fields: ['email'] },
+    { pattern: /(?:enter|fill|type|input)\s+(?:name|full\s*name)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, fields: ['name'] },
+    { pattern: /(?:enter|fill|type|input)\s+(?:phone|telephone)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, fields: ['phone'] }
   ];
 
-  for (const { pattern, field } of formPatterns) {
+  for (const { pattern, fields } of formPatterns) {
     const match = description.match(pattern);
     if (match) {
-      let fieldName = field;
-      let value = match[1]?.trim();
-      
-      // Handle generic field pattern
-      if (field === 'generic') {
-        fieldName = match[1]?.trim().toLowerCase() || 'input';
-        value = match[2]?.trim();
-      }
-      
-      // Use provided value or generate placeholder
-      const finalValue = value || getDefaultValue(fieldName, description, testData);
-      
-      // Use multiple locator strategies for better reliability with real pages
-      steps.push({
-        action: "fill",
-        locator: { 
-          type: "label" as const, 
-          value: capitalizeFirst(fieldName) 
-        },
-        text: finalValue
+      fields.forEach((fieldName, index) => {
+        const value = match[index + 1]?.trim();
+        if (value && fieldName) {
+          // STRICT MODE: Use exact value provided by user
+          steps.push({
+            action: "fill",
+            locator: { 
+              type: "label" as const, 
+              value: capitalizeFirst(fieldName) 
+            },
+            text: value // Use exact value, no substitution
+          });
+        } else if (fieldName) {
+          // Use exact values from extraction if available
+          const exactValue = exactValues[fieldName];
+          if (exactValue) {
+            steps.push({
+              action: "fill",
+              locator: { 
+                type: "label" as const, 
+                value: capitalizeFirst(fieldName) 
+              },
+              text: exactValue
+            });
+          } else {
+            // STRICT MODE: TODO instead of placeholder
+            steps.push({
+              action: "fill",
+              locator: { 
+                type: "label" as const, 
+                value: capitalizeFirst(fieldName) 
+              },
+              text: `// TODO: Specify ${fieldName} value`
+            });
+          }
+        }
       });
+      break; // Only process first matching pattern
     }
   }
+}
+
+/**
+ * STRICT MODE: Extract exact values from plain English
+ */
+function extractExactValues(description: string): Record<string, string> {
+  const values: Record<string, string> = {};
+  
+  // Extract username patterns with exact values
+  const usernamePatterns = [
+    /username\s+([A-Za-z0-9_]+)/i,
+    /user\s+([A-Za-z0-9_]+)/i,
+    /username\s+['"']([^'"]+)['"']/i,
+    /user\s+['"']([^'"]+)['"']/i
+  ];
+  
+  for (const pattern of usernamePatterns) {
+    const match = description.match(pattern);
+    if (match) {
+      values['username'] = match[1];
+      break;
+    }
+  }
+  
+  // Extract password patterns with exact values
+  const passwordPatterns = [
+    /password\s+([A-Za-z0-9_]+)/i,
+    /pass\s+([A-Za-z0-9_]+)/i,
+    /password\s+['"']([^'"]+)['"']/i,
+    /pass\s+['"']([^'"]+)['"']/i
+  ];
+  
+  for (const pattern of passwordPatterns) {
+    const match = description.match(pattern);
+    if (match) {
+      values['password'] = match[1];
+      break;
+    }
+  }
+  
+  // Extract email patterns
+  const emailMatch = description.match(/email\s+['"']?([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})['"']?/i);
+  if (emailMatch) {
+    values['email'] = emailMatch[1];
+  }
+  
+  return values;
 }
 
 function parseClickActions(description: string, steps: TestStep[]): void {
@@ -221,32 +295,13 @@ function parseAssertions(description: string, steps: TestStep[]): void {
 }
 
 function getDefaultValue(field: string, description: string, testData?: Record<string, string>): string {
-  const isInvalid = /(?:wrong|invalid|incorrect|bad|failed?)/i.test(description);
-  
-  // Use provided test data first, then fallback to contextual defaults
+  // STRICT MODE: Use test data if provided, otherwise return TODO
   if (testData && testData[field]) {
-    return isInvalid ? `invalid_${testData[field]}` : testData[field];
+    return testData[field];
   }
   
-  // Generate contextual values based on field type
-  const generateValue = (fieldType: string, invalid: boolean = false) => {
-    switch (fieldType) {
-      case 'username':
-        return invalid ? '{{INVALID_USERNAME}}' : '{{USERNAME}}';
-      case 'password':
-        return invalid ? '{{INVALID_PASSWORD}}' : '{{PASSWORD}}';
-      case 'email':
-        return invalid ? '{{INVALID_EMAIL}}' : '{{EMAIL}}';
-      case 'name':
-        return '{{FULL_NAME}}';
-      case 'phone':
-        return '{{PHONE_NUMBER}}';
-      default:
-        return `{{${fieldType.toUpperCase()}}}`;
-    }
-  };
-  
-  return generateValue(field, isInvalid);
+  // STRICT MODE: Never invent values, always return TODO
+  return `// TODO: Specify ${field} value`;
 }
 
 function extractTags(description: string): string[] {
