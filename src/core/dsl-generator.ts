@@ -40,8 +40,7 @@ export interface GenerationOptions {
 }
 
 /**
- * UNIVERSAL STRICT MODE - Plain English parser with zero deviation tolerance
- * Extracts exact values from natural language and generates complete runnable tests
+ * Enhanced test case generator with improved NLP parsing
  */
 export function generateTestCase(
   description: string, 
@@ -115,128 +114,42 @@ function extractPath(description: string): string | null {
 }
 
 function parseFormInteractions(description: string, steps: TestStep[], testData?: Record<string, string>): void {
-  // UNIVERSAL STRICT MODE: Extract exact values with aggressive pattern matching
-  const exactValues = extractExactValues(description);
-  
   const formPatterns = [
-    // Core login patterns with exact value capture
-    { pattern: /(?:try\s+to\s+)?(?:login|signin|log\s+in)\s+with\s+username\s+([A-Za-z0-9_]+)(?:\s+and\s+password\s+([A-Za-z0-9_]+))?/i, fields: ['username', 'password'] },
-    { pattern: /(?:try\s+to\s+)?(?:login|signin|log\s+in)\s+with\s+user\s+([A-Za-z0-9_]+)(?:\s+and\s+password\s+([A-Za-z0-9_]+))?/i, fields: ['username', 'password'] },
-    { pattern: /(?:try\s+to\s+)?(?:login|signin|log\s+in)\s+using\s+([A-Za-z0-9_]+)(?:\s+and\s+([A-Za-z0-9_]+))?/i, fields: ['username', 'password'] },
-    
-    // Quoted values patterns "try to login with username 'Sam' and password 'sammy'"
-    { pattern: /username\s+['"']([^'"]+)['"'](?:\s+and\s+password\s+['"']([^'"]+)['"'])?/i, fields: ['username', 'password'] },
-    { pattern: /user\s+['"']([^'"]+)['"'](?:\s+and\s+password\s+['"']([^'"]+)['"'])?/i, fields: ['username', 'password'] },
-    
-    // Individual field patterns with exact value extraction  
-    { pattern: /(?:enter|fill|type|input)\s+(?:username|user\s*name)\s*(?:with\s*|as\s*)?['"']?([^'"]*)['"']?/i, fields: ['username'] },
-    { pattern: /(?:enter|fill|type|input)\s+(?:password|pass)\s*(?:with\s*|as\s*)?['"']?([^'"]*)['"']?/i, fields: ['password'] },
-    { pattern: /(?:enter|fill|type|input)\s+(?:email|e-mail)\s*(?:with\s*|as\s*)?['"']?([^'"]*)['"']?/i, fields: ['email'] },
-    { pattern: /(?:enter|fill|type|input)\s+(?:name|full\s*name)\s*(?:with\s*|as\s*)?['"']?([^'"]*)['"']?/i, fields: ['name'] },
-    { pattern: /(?:enter|fill|type|input)\s+(?:phone|telephone)\s*(?:with\s*|as\s*)?['"']?([^'"]*)['"']?/i, fields: ['phone'] }
+    { pattern: /(?:enter|fill|type|input)\s+(?:username|user\s*name)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'username' },
+    { pattern: /(?:enter|fill|type|input)\s+(?:password|pass)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'password' },
+    { pattern: /(?:enter|fill|type|input)\s+(?:email|e-mail)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'email' },
+    { pattern: /(?:enter|fill|type|input)\s+(?:name|full\s*name)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'name' },
+    { pattern: /(?:enter|fill|type|input)\s+(?:phone|telephone)\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'phone' },
+    // Generic field pattern for any input
+    { pattern: /(?:enter|fill|type|input)\s+(?:the\s+)?([a-zA-Z\s]+?)\s+(?:field|input|box)?\s*(?:with\s*)?['"']?([^'"]*)['"']?/i, field: 'generic' }
   ];
 
-  for (const { pattern, fields } of formPatterns) {
+  for (const { pattern, field } of formPatterns) {
     const match = description.match(pattern);
     if (match) {
-      fields.forEach((fieldName, index) => {
-        const value = match[index + 1]?.trim();
-        if (value && fieldName) {
-          // STRICT MODE: Use exact value provided by user
-          steps.push({
-            action: "fill",
-            locator: { 
-              type: "label" as const, 
-              value: capitalizeFirst(fieldName) 
-            },
-            text: value // Use exact value, no substitution
-          });
-        } else if (fieldName) {
-          // Use exact values from extraction if available
-          const exactValue = exactValues[fieldName];
-          if (exactValue) {
-            steps.push({
-              action: "fill",
-              locator: { 
-                type: "label" as const, 
-                value: capitalizeFirst(fieldName) 
-              },
-              text: exactValue
-            });
-          } else {
-            // STRICT MODE: TODO instead of placeholder
-            steps.push({
-              action: "fill",
-              locator: { 
-                type: "label" as const, 
-                value: capitalizeFirst(fieldName) 
-              },
-              text: `// TODO: Specify ${fieldName} value`
-            });
-          }
-        }
+      let fieldName = field;
+      let value = match[1]?.trim();
+      
+      // Handle generic field pattern
+      if (field === 'generic') {
+        fieldName = match[1]?.trim().toLowerCase() || 'input';
+        value = match[2]?.trim();
+      }
+      
+      // Use provided value or generate placeholder
+      const finalValue = value || getDefaultValue(fieldName, description, testData);
+      
+      // Use multiple locator strategies for better reliability with real pages
+      steps.push({
+        action: "fill",
+        locator: { 
+          type: "label" as const, 
+          value: capitalizeFirst(fieldName) 
+        },
+        text: finalValue
       });
-      break; // Only process first matching pattern
     }
   }
-}
-
-/**
- * UNIVERSAL STRICT MODE: Extract exact values from plain English with aggressive pattern matching
- */
-function extractExactValues(description: string): Record<string, string> {
-  const values: Record<string, string> = {};
-  
-  // UNIVERSAL username extraction patterns - covers all common phrasings
-  const usernamePatterns = [
-    /(?:try\s+to\s+)?(?:login|signin|log\s+in)\s+with\s+username\s+([A-Za-z0-9_\.@-]+)/i,
-    /(?:try\s+to\s+)?(?:login|signin|log\s+in)\s+with\s+user\s+([A-Za-z0-9_\.@-]+)/i,
-    /(?:try\s+to\s+)?(?:login|signin|log\s+in)\s+using\s+([A-Za-z0-9_\.@-]+)/i,
-    /username\s+([A-Za-z0-9_\.@-]+)(?:\s+and|\s*$)/i,
-    /user\s+([A-Za-z0-9_\.@-]+)(?:\s+and|\s*$)/i,
-    /username\s+['"']([^'"]+)['"']/i,
-    /user\s+['"']([^'"]+)['"']/i,
-    /with\s+([A-Za-z0-9_\.@-]+)\s+and\s+password/i
-  ];
-  
-  for (const pattern of usernamePatterns) {
-    const match = description.match(pattern);
-    if (match && match[1]) {
-      values['username'] = match[1].trim();
-      break;
-    }
-  }
-  
-  // UNIVERSAL password extraction patterns - covers all common phrasings
-  const passwordPatterns = [
-    /(?:and\s+)?password\s+([A-Za-z0-9_\.@!-]+)/i,
-    /(?:and\s+)?pass\s+([A-Za-z0-9_\.@!-]+)/i,
-    /password\s+['"']([^'"]+)['"']/i,
-    /pass\s+['"']([^'"]+)['"']/i,
-    /and\s+([A-Za-z0-9_\.@!-]+)(?:\s*$|\s+[^\w])/i // Captures second value after "and"
-  ];
-  
-  for (const pattern of passwordPatterns) {
-    const match = description.match(pattern);
-    if (match && match[1]) {
-      values['password'] = match[1].trim();
-      break;
-    }
-  }
-  
-  // Extract email patterns
-  const emailMatch = description.match(/email\s+['"']?([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})['"']?/i);
-  if (emailMatch) {
-    values['email'] = emailMatch[1];
-  }
-  
-  // Extract URL patterns
-  const urlMatch = description.match(/(?:go\s+to|visit|navigate\s+to)\s+([https?:\/\/][^\s]+)/i);
-  if (urlMatch) {
-    values['url'] = urlMatch[1];
-  }
-  
-  return values;
 }
 
 function parseClickActions(description: string, steps: TestStep[]): void {
@@ -308,13 +221,32 @@ function parseAssertions(description: string, steps: TestStep[]): void {
 }
 
 function getDefaultValue(field: string, description: string, testData?: Record<string, string>): string {
-  // STRICT MODE: Use test data if provided, otherwise return TODO
+  const isInvalid = /(?:wrong|invalid|incorrect|bad|failed?)/i.test(description);
+  
+  // Use provided test data first, then fallback to contextual defaults
   if (testData && testData[field]) {
-    return testData[field];
+    return isInvalid ? `invalid_${testData[field]}` : testData[field];
   }
   
-  // STRICT MODE: Never invent values, always return TODO
-  return `// TODO: Specify ${field} value`;
+  // Generate contextual values based on field type
+  const generateValue = (fieldType: string, invalid: boolean = false) => {
+    switch (fieldType) {
+      case 'username':
+        return invalid ? '{{INVALID_USERNAME}}' : '{{USERNAME}}';
+      case 'password':
+        return invalid ? '{{INVALID_PASSWORD}}' : '{{PASSWORD}}';
+      case 'email':
+        return invalid ? '{{INVALID_EMAIL}}' : '{{EMAIL}}';
+      case 'name':
+        return '{{FULL_NAME}}';
+      case 'phone':
+        return '{{PHONE_NUMBER}}';
+      default:
+        return `{{${fieldType.toUpperCase()}}}`;
+    }
+  };
+  
+  return generateValue(field, isInvalid);
 }
 
 function extractTags(description: string): string[] {
