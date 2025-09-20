@@ -193,11 +193,73 @@ export class ServerTestExecutor implements TestExecutor {
 /**
  * Factory function to create appropriate executor based on environment
  */
-export function createTestExecutor(type: 'mock' | 'server' = 'mock'): TestExecutor {
+export function createTestExecutor(type: 'mock' | 'server' | 'real-url' = 'real-url'): TestExecutor {
   if (type === 'server') {
     return new ServerTestExecutor('playwright');
   }
+  if (type === 'real-url') {
+    return new RealUrlTestExecutor();
+  }
   return new MockTestExecutor();
+}
+
+/**
+ * Real URL Test Executor that actually navigates and tests the user's URL
+ */
+export class RealUrlTestExecutor implements TestExecutor {
+  async execute(testCase: TestCase, options: ExecutionOptions = {}): Promise<TestResult> {
+    const { RealUrlExecutor } = await import('./real-url-executor');
+    const executor = new RealUrlExecutor(options);
+    return await executor.execute(testCase);
+  }
+
+  validateTestCase(testCase: TestCase): ValidationResult {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    // Enhanced validation for real URL testing
+    if (!testCase.meta?.baseUrl) {
+      errors.push('Base URL is required for real URL testing');
+    } else {
+      try {
+        new URL(testCase.meta.baseUrl);
+      } catch {
+        errors.push('Base URL must be a valid URL (include http:// or https://)');
+      }
+    }
+
+    // Validate steps have specific requirements for real execution
+    testCase.steps?.forEach((step, index) => {
+      switch (step.action) {
+        case 'fill':
+          if (!step.locator?.value && !step.locator?.name) {
+            errors.push(`Step ${index + 1}: Fill action needs specific locator (label text, ID, or CSS selector)`);
+          }
+          if (!step.text || step.text.includes('// TODO')) {
+            errors.push(`Step ${index + 1}: Fill action needs actual text value (no TODO placeholders)`);
+          }
+          break;
+        
+        case 'click':
+          if (!step.locator?.name && !step.locator?.value) {
+            errors.push(`Step ${index + 1}: Click action needs specific locator (button text, ID, or CSS selector)`);
+          }
+          break;
+        
+        case 'assert':
+          if (!step.assertion?.value || step.assertion.value.includes('// TODO')) {
+            errors.push(`Step ${index + 1}: Assert action needs specific expected value (no TODO placeholders)`);
+          }
+          break;
+      }
+    });
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings
+    };
+  }
 }
 
 /**

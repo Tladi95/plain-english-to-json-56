@@ -68,11 +68,35 @@ export function TestGenerator() {
     if (!generatedTest) return;
     
     setIsExecuting(true);
-    setTestResult({ status: 'running', message: 'Executing test...', duration: 0 });
+    setTestResult({ status: 'running', message: 'Starting real URL test execution...', duration: 0 });
     
     try {
-      const executor = createTestExecutor();
-      const result = await executor.execute(generatedTest);
+      const executor = createTestExecutor('real-url');
+      
+      // Validate test case first
+      const validation = executor.validateTestCase(generatedTest);
+      if (!validation.isValid) {
+        setTestResult({
+          status: 'failed',
+          message: 'Test validation failed - check your test configuration',
+          error: validation.errors.join('. '),
+          duration: 0
+        });
+        
+        toast({
+          title: 'Validation Failed',
+          description: 'Test cannot run due to validation errors',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      // Execute the test against the real URL
+      const result = await executor.execute(generatedTest, {
+        timeout: 10000,
+        captureScreenshots: false
+      });
+      
       setTestResult(result);
       
       toast({
@@ -81,10 +105,18 @@ export function TestGenerator() {
         variant: result.status === 'passed' ? 'default' : 'destructive'
       });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       setTestResult({
         status: 'failed',
-        message: 'Test execution failed',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        message: 'Test execution encountered an unexpected error',
+        error: errorMessage,
+        duration: 0
+      });
+      
+      toast({
+        title: 'Execution Error',
+        description: errorMessage,
+        variant: 'destructive'
       });
     } finally {
       setIsExecuting(false);
@@ -301,42 +333,93 @@ export function TestGenerator() {
               {testResult ? (
                 <div className="space-y-4">
                   {/* Status Header */}
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50 border">
                     {testResult.status === 'passed' && (
-                      <CheckCircle className="h-6 w-6 text-green-500" />
+                      <CheckCircle className="h-6 w-6 text-green-500 flex-shrink-0" />
                     )}
                     {testResult.status === 'failed' && (
-                      <XCircle className="h-6 w-6 text-red-500" />
+                      <XCircle className="h-6 w-6 text-red-500 flex-shrink-0" />
                     )}
                     {testResult.status === 'running' && (
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary flex-shrink-0" />
                     )}
                     
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2">
                         <Badge 
                           variant={testResult.status === 'passed' ? 'default' : testResult.status === 'failed' ? 'destructive' : 'secondary'}
                         >
                           {testResult.status.toUpperCase()}
                         </Badge>
-                        {testResult.duration && (
+                        {testResult.duration !== undefined && testResult.duration > 0 && (
                           <div className="flex items-center gap-1 text-sm text-muted-foreground">
                             <Clock className="h-3 w-3" />
                             {testResult.duration}ms
                           </div>
                         )}
                       </div>
-                      <p className="text-sm mt-1">{testResult.message}</p>
+                      <p className="text-sm break-words">{testResult.message}</p>
                     </div>
                   </div>
 
-                  {/* Error Details */}
+                  {/* Detailed Error Information */}
                   {testResult.error && (
-                    <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
-                      <h4 className="text-sm font-medium text-destructive mb-2">Error Details:</h4>
-                      <pre className="text-xs text-muted-foreground overflow-auto">
+                    <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+                      <h4 className="text-sm font-medium text-destructive mb-2 flex items-center gap-2">
+                        <XCircle className="h-4 w-4" />
+                        Error Details:
+                      </h4>
+                      <pre className="text-xs text-muted-foreground overflow-auto whitespace-pre-wrap">
                         {testResult.error}
                       </pre>
+                    </div>
+                  )}
+
+                  {/* Step-by-Step Results */}
+                  {testResult.stepResults && testResult.stepResults.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium flex items-center gap-2">
+                        <TestTube2 className="h-4 w-4" />
+                        Step-by-Step Results:
+                      </h4>
+                      <div className="space-y-2">
+                        {testResult.stepResults.map((stepResult, index) => (
+                          <div 
+                            key={index}
+                            className={`flex items-center gap-3 text-xs p-3 rounded border ${
+                              stepResult.status === 'passed' 
+                                ? 'bg-green-50 border-green-200 text-green-800' 
+                                : 'bg-red-50 border-red-200 text-red-800'
+                            }`}
+                          >
+                            <div className="flex-shrink-0">
+                              {stepResult.status === 'passed' ? (
+                                <CheckCircle className="h-4 w-4 text-green-600" />
+                              ) : (
+                                <XCircle className="h-4 w-4 text-red-600" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium">
+                                Step {stepResult.stepIndex + 1}: {stepResult.action}
+                              </div>
+                              <div className="text-xs opacity-80 break-words">
+                                {stepResult.message}
+                              </div>
+                              {stepResult.error && (
+                                <div className="text-xs mt-1 font-mono bg-black/10 p-1 rounded">
+                                  {stepResult.error}
+                                </div>
+                              )}
+                            </div>
+                            {stepResult.duration && (
+                              <div className="text-xs opacity-60 flex-shrink-0">
+                                {stepResult.duration}ms
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 
@@ -368,8 +451,9 @@ export function TestGenerator() {
               ) : generatedTest ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <TestTube2 className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                  <p>Ready to execute test</p>
-                  <p className="text-xs mt-1">Click "Execute Test" to run your test case</p>
+                  <p className="font-medium">Ready to test your URL</p>
+                  <p className="text-xs mt-1">This will actually navigate to <strong>{generatedTest.meta.baseUrl}</strong> and run your test</p>
+                  <p className="text-xs mt-2 text-amber-600">⚠️ Make sure your URL is accessible and the page is ready for testing</p>
                 </div>
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
